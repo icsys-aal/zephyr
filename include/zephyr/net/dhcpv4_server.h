@@ -137,6 +137,10 @@ typedef int (*net_dhcpv4_server_provider_cb_t)(struct net_if *iface,
 void net_dhcpv4_server_set_provider_cb(net_dhcpv4_server_provider_cb_t cb,
 				       void *user_data);
 
+typedef int (*net_dhcpv4_server_address_validator_cb_t)(struct net_if *iface, const struct dhcpv4_client_id *client_id, const struct in_addr *addr, void *user_data);
+
+void net_dhcpv4_server_set_address_validator_cb(net_dhcpv4_server_address_validator_cb_t cb, void *user_data);
+
 /**
  * @}
  */
