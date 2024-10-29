@@ -632,6 +632,18 @@ static void handle_wifi_con_state_changed(void *pvMsg)
 			break;
 		}
 
+		for (unsigned i = 0; i < CONFIG_WIFI_WINC1500_OFFLOAD_MAX_SOCKETS; ++i)
+		{
+			struct socket_data* sd = &w1500_data.socket_data[i];
+
+			if (sd->pkt_buf) {
+				net_buf_unref(sd->pkt_buf);
+			}
+			winc1500_close(i);
+
+			memset(sd, 0, sizeof(struct socket_data));
+		}
+
 		w1500_data.connected = false;
 		wifi_mgmt_raise_disconnect_result_event(w1500_data.iface, 0);
 
