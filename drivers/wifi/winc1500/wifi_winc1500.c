@@ -527,6 +527,15 @@ out:
 static int prepare_pkt(struct socket_data *sock_data)
 {
 	/* Get the frame from the buffer */
+
+	if (sock_data->rx_pkt)
+	{
+		if (sock_data->rx_pkt->atomic_ref > 0)
+		{
+			return 0;
+		}
+	}
+
 	sock_data->rx_pkt = net_pkt_rx_alloc_on_iface(w1500_data.iface,
 						      K_NO_WAIT);
 	if (!sock_data->rx_pkt) {
