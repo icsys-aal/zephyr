@@ -840,9 +840,18 @@ static bool handle_socket_msg_recv(SOCKET sock,
 				    NULL, NULL,
 				    0,
 				    sd->recv_user_data);
+		}
+	}
+	else {
+		if (pstrRx->s16BufferSize == SOCK_ERR_CONN_ABORTED || pstrRx->s16BufferSize <= 0) {
+
+			if (sd->recv_cb) {
+				sd->recv_cb(sd->context,
+						NULL,
+						NULL, NULL,
+						0,
+						sd->recv_user_data);
 			}
-	} else if (pstrRx->pu8Buffer == NULL) {
-		if (pstrRx->s16BufferSize == SOCK_ERR_CONN_ABORTED) {
 			winc1500_close(sock);
 
 			net_pkt_unref(sd->rx_pkt);
