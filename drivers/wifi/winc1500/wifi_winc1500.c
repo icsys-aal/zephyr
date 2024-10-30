@@ -826,6 +826,11 @@ static bool handle_socket_msg_recv(SOCKET sock,
 	tstrSocketRecvMsg *pstrRx = (tstrSocketRecvMsg *)pvMsg;
 
 	if ((pstrRx->pu8Buffer != NULL) && (pstrRx->s16BufferSize > 0)) {
+		if (net_buf_simple_tailroom(&sd->pkt_buf->b) <= pstrRx->s16BufferSize) {
+			sd->rx_pkt = NULL;
+			prepare_pkt(sd);
+		}
+
 		net_buf_add(sd->pkt_buf, pstrRx->s16BufferSize);
 		net_pkt_cursor_init(sd->rx_pkt);
 
