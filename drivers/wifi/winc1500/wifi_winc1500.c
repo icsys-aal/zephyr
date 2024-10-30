@@ -1016,6 +1016,14 @@ static void winc1500_thread(void *p1, void *p2, void *p3)
 		while (m2m_wifi_handle_events(NULL) != 0) {
 		}
 
+		for (unsigned int i = 0; i < 11; ++i) {
+			struct socket_data* sd = &w1500_data.socket_data[i];
+			if (sd->recv_cb)
+			{
+				winc1500_socket_recv(i, sd->pkt_buf->data,
+					CONFIG_WIFI_WINC1500_MAX_PACKET_SIZE, 0);
+			}
+		}
 		k_sleep(K_MSEC(1));
 	}
 }
