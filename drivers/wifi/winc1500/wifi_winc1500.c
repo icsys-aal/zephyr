@@ -528,14 +528,14 @@ static int prepare_pkt(struct socket_data *sock_data)
 {
 	/* Get the frame from the buffer */
 	sock_data->rx_pkt = net_pkt_rx_alloc_on_iface(w1500_data.iface,
-						      K_NO_WAIT);
+						      WINC1500_BUF_TIMEOUT);
 	if (!sock_data->rx_pkt) {
 		LOG_ERR("Could not allocate rx packet");
 		return -1;
 	}
 
 	/* Reserve a data buffer to receive the frame */
-	sock_data->pkt_buf = net_buf_alloc(&winc1500_rx_pool, K_NO_WAIT);
+	sock_data->pkt_buf = net_buf_alloc(&winc1500_rx_pool, WINC1500_BUF_TIMEOUT);
 	if (!sock_data->pkt_buf) {
 		LOG_ERR("Could not allocate data buffer");
 		net_pkt_unref(sock_data->rx_pkt);
