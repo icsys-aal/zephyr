@@ -139,10 +139,10 @@ struct socket_data {
 	void				*connect_user_data;
 	void				*recv_user_data;
 	void				*accept_user_data;
-	struct net_pkt			*rx_pkt;
-	struct net_buf			*pkt_buf;
 	int				ret_code;
 	struct k_sem			wait_sem;
+	struct k_mutex			rx_pkt_mutex;
+	uint8_t buffer[CONFIG_WIFI_WINC1500_MAX_PACKET_SIZE];
 };
 
 struct winc1500_data {
@@ -316,6 +316,8 @@ static int winc1500_get(sa_family_t family,
 	sd = &w1500_data.socket_data[sock];
 
 	k_sem_init(&sd->wait_sem, 0, 1);
+
+	k_mutex_init(&sd->rx_pkt_mutex);
 
 	sd->context = *context;
 
@@ -523,31 +525,6 @@ out:
 }
 
 /**
- */
-static int prepare_pkt(struct socket_data *sock_data)
-{
-	/* Get the frame from the buffer */
-	sock_data->rx_pkt = net_pkt_rx_alloc_on_iface(w1500_data.iface,
-						      WINC1500_BUF_TIMEOUT);
-	if (!sock_data->rx_pkt) {
-		LOG_ERR("Could not allocate rx packet");
-		return -1;
-	}
-
-	/* Reserve a data buffer to receive the frame */
-	sock_data->pkt_buf = net_buf_alloc(&winc1500_rx_pool, WINC1500_BUF_TIMEOUT);
-	if (!sock_data->pkt_buf) {
-		LOG_ERR("Could not allocate data buffer");
-		net_pkt_unref(sock_data->rx_pkt);
-		return -1;
-	}
-
-	net_pkt_append_buffer(sock_data->rx_pkt, sock_data->pkt_buf);
-
-	return 0;
-}
-
-/**
  * This function is called when user wants to receive data from peer
  * host.
  */
@@ -565,20 +542,6 @@ static int winc1500_recv(struct net_context *context,
 		return 0;
 	}
 
-	ret = prepare_pkt(&w1500_data.socket_data[socket]);
-	if (ret) {
-		LOG_ERR("Could not reserve packet buffer");
-		return -ENOMEM;
-	}
-
-
-	ret = winc1500_socket_recv(socket, w1500_data.socket_data[socket].pkt_buf->data,
-		   CONFIG_WIFI_WINC1500_MAX_PACKET_SIZE, timeout);
-	if (ret) {
-		LOG_ERR("recv error %d %s!",
-			ret, socket_error_string(ret));
-		return ret;
-	}
 
 	return 0;
 }
@@ -595,8 +558,6 @@ static int winc1500_put(struct net_context *context)
 	memset(&(context->remote), 0, sizeof(struct sockaddr_in));
 	context->flags &= ~NET_CONTEXT_REMOTE_ADDR_SET;
 	ret = winc1500_close(sock);
-
-	net_pkt_unref(sd->rx_pkt);
 
 	memset(sd, 0, sizeof(struct socket_data));
 
@@ -636,9 +597,6 @@ static void handle_wifi_con_state_changed(void *pvMsg)
 		{
 			struct socket_data* sd = &w1500_data.socket_data[i];
 
-			if (sd->pkt_buf) {
-				net_buf_unref(sd->pkt_buf);
-			}
 			winc1500_close(i);
 
 			memset(sd, 0, sizeof(struct socket_data));
@@ -815,23 +773,37 @@ static bool handle_socket_msg_recv(SOCKET sock,
 				   struct socket_data *sd, void *pvMsg)
 {
 	tstrSocketRecvMsg *pstrRx = (tstrSocketRecvMsg *)pvMsg;
-
-	if ((pstrRx->pu8Buffer != NULL) && (pstrRx->s16BufferSize > 0)) {
-		if (net_buf_simple_tailroom(&sd->pkt_buf->b) <= pstrRx->s16BufferSize) {
-			sd->rx_pkt = NULL;
-			prepare_pkt(sd);
+	printk("Received %d / %d bytes\n", pstrRx->s16BufferSize, pstrRx->u16RemainingSize);
+	if ((pstrRx->pu8Buffer != NULL) && (pstrRx->s16BufferSize > 0) && sd->recv_cb) {
+		/* Get the frame from the buffer */
+		struct net_pkt* rx_pkt = net_pkt_rx_alloc_on_iface(w1500_data.iface,
+								WINC1500_BUF_TIMEOUT);
+		if (!rx_pkt) {
+			LOG_ERR("Could not allocate rx packet");
+			return -1;
 		}
 
-		net_buf_add(sd->pkt_buf, pstrRx->s16BufferSize);
-		net_pkt_cursor_init(sd->rx_pkt);
-
-		if (sd->recv_cb) {
-			sd->recv_cb(sd->context,
-				    sd->rx_pkt,
-				    NULL, NULL,
-				    0,
-				    sd->recv_user_data);
+		/* Reserve a data buffer to receive the frame */
+		struct net_buf* pkt_buf = net_buf_alloc(&winc1500_rx_pool, WINC1500_BUF_TIMEOUT);
+		if (!pkt_buf) {
+			LOG_ERR("Could not allocate data buffer");
+			net_pkt_unref(rx_pkt);
+			return -1;
 		}
+		printk("net_buf size %d, ptr %d\n", pkt_buf->size, pkt_buf->__buf);
+
+		net_pkt_append_buffer(rx_pkt, pkt_buf);
+
+		net_buf_add_mem(pkt_buf, sd->buffer, pstrRx->s16BufferSize);
+
+		net_pkt_cursor_init(rx_pkt);
+
+		sd->recv_cb(sd->context,
+				rx_pkt,
+				NULL, NULL,
+				0,
+				sd->recv_user_data);
+		rx_pkt = NULL;
 	}
 	else {
 		if (pstrRx->s16BufferSize == SOCK_ERR_CONN_ABORTED || pstrRx->s16BufferSize <= 0) {
@@ -845,7 +817,6 @@ static bool handle_socket_msg_recv(SOCKET sock,
 			}
 			winc1500_close(sock);
 
-			net_pkt_unref(sd->rx_pkt);
 			return false;
 		}
 	}
@@ -1011,7 +982,7 @@ static void winc1500_thread(void *p1, void *p2, void *p3)
 			struct socket_data* sd = &w1500_data.socket_data[i];
 			if (sd->recv_cb)
 			{
-				winc1500_socket_recv(i, sd->pkt_buf->data,
+				winc1500_socket_recv(i, sd->buffer,
 					CONFIG_WIFI_WINC1500_MAX_PACKET_SIZE, 0);
 			}
 		}
