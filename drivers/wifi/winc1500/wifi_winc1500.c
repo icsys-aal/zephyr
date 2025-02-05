@@ -141,7 +141,6 @@ struct socket_data {
 	void				*accept_user_data;
 	int				ret_code;
 	struct k_sem			wait_sem;
-	struct k_mutex			rx_pkt_mutex;
 	uint8_t buffer[CONFIG_WIFI_WINC1500_MAX_PACKET_SIZE];
 };
 
@@ -316,8 +315,6 @@ static int winc1500_get(sa_family_t family,
 	sd = &w1500_data.socket_data[sock];
 
 	k_sem_init(&sd->wait_sem, 0, 1);
-
-	k_mutex_init(&sd->rx_pkt_mutex);
 
 	sd->context = *context;
 
@@ -534,14 +531,9 @@ static int winc1500_recv(struct net_context *context,
 			 void *user_data)
 {
 	SOCKET socket = (intptr_t)context->offload_context;
-	int ret;
 
 	w1500_data.socket_data[socket].recv_cb = cb;
 	w1500_data.socket_data[socket].recv_user_data = user_data;
-	if (!cb) {
-		return 0;
-	}
-
 
 	return 0;
 }
@@ -773,7 +765,6 @@ static bool handle_socket_msg_recv(SOCKET sock,
 				   struct socket_data *sd, void *pvMsg)
 {
 	tstrSocketRecvMsg *pstrRx = (tstrSocketRecvMsg *)pvMsg;
-	printk("Received %d / %d bytes\n", pstrRx->s16BufferSize, pstrRx->u16RemainingSize);
 	if ((pstrRx->pu8Buffer != NULL) && (pstrRx->s16BufferSize > 0) && sd->recv_cb) {
 		/* Get the frame from the buffer */
 		struct net_pkt* rx_pkt = net_pkt_rx_alloc_on_iface(w1500_data.iface,
@@ -790,7 +781,6 @@ static bool handle_socket_msg_recv(SOCKET sock,
 			net_pkt_unref(rx_pkt);
 			return -1;
 		}
-		printk("net_buf size %d, ptr %d\n", pkt_buf->size, pkt_buf->__buf);
 
 		net_pkt_append_buffer(rx_pkt, pkt_buf);
 
