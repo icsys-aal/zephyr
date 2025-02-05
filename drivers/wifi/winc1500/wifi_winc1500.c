@@ -1091,6 +1091,19 @@ static int winc1500_mgmt_ap_enable(const struct device *dev,
 		return -EIO;
 	}
 
+	struct in_addr addr;
+	for (unsigned int i = 0u; i < 4; i++) {
+		addr.s4_addr[i] = strM2MAPConfig.au8DHCPServerIP[i];
+	}
+	net_if_ipv4_addr_add(w1500_data.iface, &addr, NET_ADDR_MANUAL, 0);
+
+	struct in_addr mask;
+	mask.s4_addr[0] = 255;
+	mask.s4_addr[1] = 255;
+	mask.s4_addr[2] = 255;
+	mask.s4_addr[3] = 0;
+	net_if_ipv4_set_netmask_by_addr(w1500_data.iface, &addr, &mask);
+
 	return 0;
 }
 
