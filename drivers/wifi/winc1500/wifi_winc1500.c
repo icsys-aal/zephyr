@@ -467,16 +467,24 @@ static int winc1500_send(struct net_pkt *pkt,
 
 	net_buf_add(buf, net_pkt_get_len(pkt));
 
-	ret = winc1500_socket_send(socket, buf->data, buf->len, 0);
-	if (ret) {
-		LOG_ERR("send error %d %s!", ret, socket_error_string(ret));
-		goto out;
+	int tries = 0;
+	ret = -EFAULT;
+	while (tries++ < 5 && ret == -EFAULT)
+	{
+		ret = winc1500_socket_send(socket, buf->data, buf->len, 0);
+		if (ret == 0)
+		{
+			net_pkt_unref(pkt);
+			net_buf_unref(buf);
+			return 0;
+		}
+		LOG_WRN("winc1500_send: retrying, %d tries...", tries);
+		k_sleep(K_MSEC(10 * tries * tries));
 	}
 
-	net_pkt_unref(pkt);
+	LOG_ERR("send error %d %s!", ret, socket_error_string(ret));
 out:
 	net_buf_unref(buf);
-
 	return ret;
 }
 
