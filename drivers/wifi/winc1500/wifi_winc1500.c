@@ -130,6 +130,7 @@ NET_BUF_POOL_DEFINE(winc1500_rx_pool, CONFIG_WIFI_WINC1500_BUF_CTR,
 
 K_KERNEL_STACK_MEMBER(winc1500_stack, CONFIG_WIFI_WINC1500_THREAD_STACK_SIZE);
 struct k_thread winc1500_thread_data;
+static bool run_thread = true;
 
 struct socket_data {
 	struct net_context		*context;
@@ -972,7 +973,7 @@ static void winc1500_thread(void *p1, void *p2, void *p3)
 	ARG_UNUSED(p2);
 	ARG_UNUSED(p3);
 
-	while (1) {
+	while (run_thread) {
 		while (m2m_wifi_handle_events(NULL) != 0) {
 		}
 
@@ -1132,6 +1133,10 @@ static void winc1500_iface_init(struct net_if *iface)
 static enum offloaded_net_if_types winc1500_get_wifi_type(void)
 {
 	return L2_OFFLOADED_NET_IF_TYPE_WIFI;
+}
+
+void winc1500_set_enabled(bool state) {
+	run_thread = state;
 }
 
 static const struct wifi_mgmt_ops winc1500_mgmt_ops = {
