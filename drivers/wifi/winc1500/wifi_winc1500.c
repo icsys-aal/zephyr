@@ -158,13 +158,6 @@ struct winc1500_data {
 
 static struct winc1500_data w1500_data;
 
-#if LOG_LEVEL > LOG_LEVEL_OFF
-static void stack_stats(void)
-{
-	log_stack_usage(&winc1500_thread_data);
-}
-#endif /* LOG_LEVEL > LOG_LEVEL_OFF */
-
 static char *socket_error_string(int8_t err)
 {
 	switch (err) {
@@ -744,9 +737,6 @@ static void winc1500_wifi_cb(uint8_t message_type, void *pvMsg)
 	default:
 		break;
 	}
-#if LOG_LEVEL > LOG_LEVEL_OFF
-	stack_stats();
-#endif /* LOG_LEVEL > LOG_LEVEL_OFF */
 }
 
 static void handle_socket_msg_connect(struct socket_data *sd, void *pvMsg)
@@ -962,9 +952,6 @@ static void winc1500_socket_cb(SOCKET sock, uint8 message, void *pvMsg)
 
 		break;
 	}
-#if LOG_LEVEL > LOG_LEVEL_OFF
-	stack_stats();
-#endif /* LOG_LEVEL > LOG_LEVEL_OFF */
 }
 
 static void winc1500_thread(void *p1, void *p2, void *p3)
