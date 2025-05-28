@@ -41,6 +41,10 @@ enum dhcpv4_server_addr_state {
 };
 
 struct dhcpv4_client_id {
+	uint8_t hw_addr_type;
+	uint8_t hw_addr_buf[16];
+	uint8_t hw_addr_len;
+
 	uint8_t buf[DHCPV4_CLIENT_ID_MAX_SIZE];
 	uint8_t len;
 };
