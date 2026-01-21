@@ -36,7 +36,6 @@ LOG_MODULE_REGISTER(net_if, CONFIG_NET_IF_LOG_LEVEL);
 #include "net_private.h"
 #include "ipv4.h"
 #include "ipv6.h"
-#include "tcp_internal.h"
 
 #include "net_stats.h"
 

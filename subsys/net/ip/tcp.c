@@ -4745,39 +4745,6 @@ struct k_sem *net_tcp_conn_sem_get(struct net_context *context)
 	return &conn->connect_sem;
 }
 
-static void close_tcp_conn(struct tcp *conn, void *user_data)
-{
-	struct net_if *iface = user_data;
-	struct net_context *context = conn->context;
-
-	if (!net_context_is_used(context)) {
-		return;
-	}
-
-	if (net_context_get_iface(context) != iface) {
-		return;
-	}
-
-	/* net_tcp_put() will handle decrementing refcount on stack's behalf */
-	if (net_context_get_state(context) != NET_CONTEXT_LISTENING) {
-		net_tcp_put(context, true);
-	} else {
-		if (context->conn_handler) {
-			net_conn_unregister(context->conn_handler);
-			context->conn_handler = NULL;
-		}
-
-		if (conn->accept_cb != NULL) {
-			conn->accept_cb(conn->context, NULL, 0, -ENETDOWN, context->user_data);
-		}
-	}
-}
-
-void net_tcp_close_all_for_iface(struct net_if *iface)
-{
-	net_tcp_foreach(close_tcp_conn, iface);
-}
-
 void net_tcp_init(void)
 {
 	int i;
